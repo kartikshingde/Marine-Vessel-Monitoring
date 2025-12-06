@@ -1,14 +1,27 @@
 import express from 'express';
+import { createServer } from 'http';
+import { Server } from 'socket.io';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import connectDB from './src/config/db.js';
 import authRoutes from './src/routes/auth.js';
+import vesselRoutes from './src/routes/vessels.js';
 
 // Load environment variables
 dotenv.config();
 
 // Create Express app
 const app = express();
+const httpServer = createServer(app);
+
+// Socket.IO setup
+const io = new Server(httpServer, {
+  cors: {
+    origin: process.env.CLIENT_URL || 'http://localhost:5173',
+    methods: ['GET', 'POST'],
+    credentials: true,
+  },
+});
 
 // Connect to MongoDB
 connectDB();
@@ -21,6 +34,9 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Make io accessible to routes
+app.set('io', io);
+
 // Request logger (development only)
 if (process.env.NODE_ENV === 'development') {
   app.use((req, res, next) => {
@@ -31,6 +47,7 @@ if (process.env.NODE_ENV === 'development') {
 
 // API Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/vessels', vesselRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -38,6 +55,20 @@ app.get('/health', (req, res) => {
     success: true, 
     message: '🚢 Marine Vessel API is running',
     timestamp: new Date().toISOString() 
+  });
+});
+
+// Socket.IO connection handling
+io.on('connection', (socket) => {
+  console.log(`✅ Client connected: ${socket.id}`);
+
+  socket.on('disconnect', () => {
+    console.log(`❌ Client disconnected: ${socket.id}`);
+  });
+
+  // Listen for custom events
+  socket.on('vessel-update', (data) => {
+    console.log('Received vessel update:', data);
   });
 });
 
@@ -49,7 +80,7 @@ app.use((req, res) => {
   });
 });
 
-// Global error handler (Express 5 supports async errors automatically)
+// Global error handler
 app.use((err, req, res, next) => {
   console.error('Error:', err.stack);
   res.status(err.status || 500).json({
@@ -61,8 +92,9 @@ app.use((err, req, res, next) => {
 
 // Start server
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
+httpServer.listen(PORT, () => {
   console.log(`\n🚀 Server running on port ${PORT}`);
   console.log(`📍 Environment: ${process.env.NODE_ENV}`);
-  console.log(`🔗 Health check: http://localhost:${PORT}/health\n`);
+  console.log(`🔗 Health check: http://localhost:${PORT}/health`);
+  console.log(`🔌 Socket.IO ready for connections\n`);
 });
