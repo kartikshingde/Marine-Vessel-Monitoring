@@ -1,5 +1,6 @@
 import { useContext } from "react";
 import { AuthContext } from "../context/AuthContext";
+import { Link } from "react-router-dom";
 
 const ManagerDashboard = () => {
   const { user } = useContext(AuthContext);
@@ -200,13 +201,15 @@ const ManagerDashboard = () => {
 
         {/* Quick Actions */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-linear-to-br from-blue-500 to-blue-600 rounded-2xl p-6 text-white shadow-lg hover:shadow-xl transition-shadow cursor-pointer">
-            <div className="text-3xl mb-3">🗺️</div>
-            <h4 className="text-lg font-bold mb-2">View Map</h4>
-            <p className="text-blue-100 text-sm">
-              Track all vessels on interactive map
-            </p>
-          </div>
+          <Link to={"/map"}>
+            <div className="bg-linear-to-br from-blue-500 to-blue-600 rounded-2xl p-6 text-white shadow-lg hover:shadow-xl transition-shadow cursor-pointer">
+              <div className="text-3xl mb-3">🗺️</div>
+              <h4 className="text-lg font-bold mb-2">View Map</h4>
+              <p className="text-blue-100 text-sm">
+                Track all vessels on interactive map
+              </p>
+            </div>
+          </Link>
 
           <div className="bg-linear-to-br from-green-500 to-green-600 rounded-2xl p-6 text-white shadow-lg hover:shadow-xl transition-shadow cursor-pointer">
             <div className="text-3xl mb-3">📈</div>
