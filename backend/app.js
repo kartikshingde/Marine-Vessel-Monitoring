@@ -6,6 +6,7 @@ import dotenv from 'dotenv';
 import connectDB from './src/config/db.js';
 import authRoutes from './src/routes/auth.js';
 import vesselRoutes from './src/routes/vessels.js';
+import userRoutes from './src/routes/users.js'
 
 // Load environment variables
 dotenv.config();
@@ -48,6 +49,7 @@ if (process.env.NODE_ENV === 'development') {
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/vessels', vesselRoutes);
+app.use('/api/users', userRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {

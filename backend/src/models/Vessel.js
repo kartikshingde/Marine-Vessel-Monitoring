@@ -1,21 +1,21 @@
-import mongoose from 'mongoose';
+import mongoose from "mongoose";
 
 const vesselSchema = new mongoose.Schema(
   {
     name: {
       type: String,
-      required: [true, 'Vessel name is required'],
+      required: [true, "Vessel name is required"],
       trim: true,
     },
     mmsi: {
       type: String,
       unique: true,
-      required: [true, 'MMSI is required'],
+      required: [true, "MMSI is required"],
     },
     type: {
       type: String,
-      enum: ['cargo', 'tanker', 'passenger', 'fishing', 'military'],
-      default: 'cargo',
+      enum: ["cargo", "tanker", "passenger", "fishing", "military"],
+      default: "cargo",
     },
     currentPosition: {
       latitude: {
@@ -48,12 +48,12 @@ const vesselSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['active', 'docked', 'anchored', 'maintenance'],
-      default: 'active',
+      enum: ["active", "docked", "anchored", "maintenance"],
+      default: "active",
     },
     captainId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
+      ref: "User",
     },
     positionHistory: [
       {
@@ -63,7 +63,13 @@ const vesselSchema = new mongoose.Schema(
         speed: Number,
       },
     ],
+    lastNoonReportAt: { type: Date },
+    lastNoonReportId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "NoonReport",
+    },
   },
+
   { timestamps: true }
 );
 
@@ -71,4 +77,4 @@ const vesselSchema = new mongoose.Schema(
 vesselSchema.index({ mmsi: 1 });
 vesselSchema.index({ status: 1 });
 
-export default mongoose.model('Vessel', vesselSchema);
+export default mongoose.model("Vessel", vesselSchema);
