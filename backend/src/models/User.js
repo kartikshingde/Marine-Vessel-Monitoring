@@ -32,21 +32,19 @@ const userSchema = new mongoose.Schema(
       required: [true, 'Role is required'],
     },
     vesselId: {
-      type: String,
+      type: mongoose.Schema.Types.ObjectId,  
       ref: 'Vessel',
-      required: function () {
-        return this.role === 'captain';
-      },
+      // ✅ REMOVED required for captain (manager assigns later)
     },
   },
-  { 
+  {
     timestamps: true,
     toJSON: { virtuals: true },
     toObject: { virtuals: true }
   }
 );
 
-// Hash password before saving - Modern approach (no callback)
+// Hash password before saving
 userSchema.pre('save', async function () {
   if (!this.isModified('password')) return;
   this.password = await bcrypt.hash(this.password, 12);

@@ -59,6 +59,29 @@ router.get('/', protect, async (req, res) => {
 });
 
 /**
+ * GET /api/vessels/noon-reports-count
+ * ⚠️ MUST be BEFORE /:id routes to avoid conflicts
+ * Manager only - Get total count of all noon reports
+ */
+router.get('/noon-reports-count', protect, restrictTo('manager'), async (req, res) => {
+  try {
+    const count = await NoonReport.countDocuments();
+    console.log('📊 Total noon reports:', count);
+    
+    res.status(200).json({
+      success: true,
+      count: count,
+    });
+  } catch (error) {
+    console.error('Count Noon Reports Error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to count noon reports',
+    });
+  }
+});
+
+/**
  * POST /api/vessels
  */
 router.post('/', protect, async (req, res) => {

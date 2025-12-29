@@ -35,13 +35,13 @@ router.post('/register', async (req, res) => {
       });
     }
 
-    // Captain must have vesselId
-    if (role === 'captain' && !vesselId) {
-      return res.status(400).json({
-        success: false,
-        message: 'Captain role requires vesselId',
-      });
-    }
+    // // Captain must have vesselId
+    // if (role === 'captain' && !vesselId) {
+    //   return res.status(400).json({
+    //     success: false,
+    //     message: 'Captain role requires vesselId',
+    //   });
+    // }
 
     // Check if user already exists
     const existingUser = await User.findOne({ email });
