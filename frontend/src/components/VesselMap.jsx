@@ -208,7 +208,7 @@ const VesselMap = () => {
     <div className="h-screen flex">
       {/* Sidebar */}
       <div className="w-96 bg-white border-r border-gray-200 overflow-y-auto flex flex-col">
-        <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-cyan-50">
+        <div className="p-6 border-b border-gray-200 bg-linear-to-r from-blue-50 to-cyan-50">
           <h3 className="text-xl font-bold text-gray-900">Vessels</h3>
           <p className="text-sm text-gray-600 mt-1">
             {filteredVessels.length} of {vessels.length} vessels
@@ -483,7 +483,7 @@ const VesselMap = () => {
           ))}
         </MapContainer>
 
-        <div className="absolute top-6 right-6 bg-white rounded-xl shadow-lg border border-gray-200 p-3 z-[1000] space-y-2">
+        <div className="absolute top-6 right-6 bg-white rounded-xl shadow-lg border border-gray-200 p-3 z-1000 space-y-2">
           <button
             onClick={() => {
               setMapCenter([
@@ -504,7 +504,7 @@ const VesselMap = () => {
           </button>
         </div>
 
-        <div className="absolute bottom-6 left-6 bg-white rounded-xl shadow-lg border border-gray-200 p-4 z-[1000] max-w-xs">
+        <div className="absolute bottom-6 left-6 bg-white rounded-xl shadow-lg border border-gray-200 p-4 z-1000 max-w-xs">
           <h4 className="font-bold text-gray-900 mb-3">Legend</h4>
           <div className="space-y-2 text-sm">
             {[
@@ -547,7 +547,7 @@ const VesselMap = () => {
         </div>
 
         {selectedVessel && (
-          <div className="absolute top-6 left-6 bg-white rounded-xl shadow-lg border border-gray-200 p-4 z-[1000] max-w-xs">
+          <div className="absolute top-6 left-6 bg-white rounded-xl shadow-lg border border-gray-200 p-4 z-1000 max-w-xs">
             <div className="flex items-center justify-between mb-2">
               <h4 className="font-bold text-gray-900">{selectedVessel.name}</h4>
               <button

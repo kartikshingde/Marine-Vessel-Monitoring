@@ -5,21 +5,24 @@ import { Link, useNavigate } from 'react-router-dom';
 const Register = () => {
   const { register } = useContext(AuthContext);
   const navigate = useNavigate();
-  
+
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     password: '',
     confirmPassword: '',
     role: 'manager',
-    vesselId: '',
   });
+
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value,
+    });
     setError('');
   };
 
@@ -38,11 +41,6 @@ const Register = () => {
       return;
     }
 
-    if (formData.role === 'captain' && !formData.vesselId) {
-      setError('Captain role requires a Vessel ID');
-      return;
-    }
-
     setLoading(true);
 
     try {
@@ -53,9 +51,9 @@ const Register = () => {
         role: formData.role,
       };
 
-      if (formData.role === 'captain') {
-        userData.vesselId = formData.vesselId;
-      }
+      // ✅ REMOVED: vesselId requirement and logic
+      // Captains register WITHOUT vessels
+      // Managers assign vessels later via dashboard
 
       await register(userData);
       navigate('/dashboard');
@@ -67,131 +65,109 @@ const Register = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-cyan-50 via-white to-blue-50 px-4 py-8">
-      <div className="max-w-md w-full">
+    <div className="min-h-screen bg-linear-to-br from-blue-50 via-cyan-50 to-blue-100 flex items-center justify-center p-4">
+      <div className="w-full max-w-md">
         {/* Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-linear-to-br from-cyan-500 to-blue-600 rounded-2xl mb-4 shadow-lg shadow-cyan-500/30">
-            <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-            </svg>
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-linear-to-br from-blue-600 to-cyan-500 rounded-2xl mb-4 shadow-lg">
+            <span className="text-3xl">🚢</span>
           </div>
-          <h2 className="text-3xl font-bold text-gray-900 mb-2">Create Account</h2>
-          <p className="text-gray-600">Join Marine Vessel Monitor</p>
+          <h2 className="text-3xl font-bold text-gray-900 mb-2">
+            Join Marine Vessel Monitor
+          </h2>
+          <p className="text-gray-600">
+            Create your account to start tracking vessels
+          </p>
         </div>
 
-        {/* Form Card */}
-        <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
-          {error && (
-            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3">
-              <svg className="w-5 h-5 text-red-500 shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-              </svg>
-              <span className="text-red-700 text-sm font-medium">{error}</span>
-            </div>
-          )}
+        {/* Register Form */}
+        <div className="bg-white rounded-3xl shadow-xl p-8 border border-gray-100">
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Error Message */}
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm flex items-start gap-2">
+                <svg className="w-5 h-5 shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+                <span>{error}</span>
+              </div>
+            )}
 
-          <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Name Input */}
+            {/* Full Name */}
             <div>
               <label htmlFor="name" className="block text-sm font-semibold text-gray-700 mb-2">
                 Full Name
               </label>
               <input
+                type="text"
                 id="name"
                 name="name"
-                type="text"
-                required
-                autoComplete="name"
                 value={formData.name}
                 onChange={handleChange}
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all outline-none placeholder:text-gray-400"
-                placeholder="John Smith"
+                required
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+                placeholder="John Doe"
               />
             </div>
 
-            {/* Email Input */}
+            {/* Email */}
             <div>
               <label htmlFor="email" className="block text-sm font-semibold text-gray-700 mb-2">
                 Email Address
               </label>
               <input
+                type="email"
                 id="email"
                 name="email"
-                type="email"
-                required
-                autoComplete="email"
                 value={formData.email}
                 onChange={handleChange}
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all outline-none placeholder:text-gray-400"
-                placeholder="john@marine.com"
+                required
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+                placeholder="john@example.com"
               />
             </div>
 
             {/* Role Selection */}
             <div>
               <label htmlFor="role" className="block text-sm font-semibold text-gray-700 mb-2">
-                Select Role
+                Role
               </label>
               <select
                 id="role"
                 name="role"
-                required
                 value={formData.role}
                 onChange={handleChange}
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all outline-none bg-white"
+                required
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all bg-white"
               >
-                <option value="manager">Manager</option>
-                <option value="captain">Captain</option>
+                <option value="manager">👔 Manager - Manage fleet & assign captains</option>
+                <option value="captain">⚓ Captain - Submit noon reports</option>
               </select>
-              <p className="mt-2 text-xs text-gray-500">
-                {formData.role === 'manager' 
-                  ? '👔 Managers can access all vessels' 
-                  : '⚓ Captains are assigned to specific vessels'}
-              </p>
             </div>
 
-            {/* Vessel ID (Only for Captain) */}
-            {formData.role === 'captain' && (
-              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-                <label htmlFor="vesselId" className="block text-sm font-semibold text-gray-700 mb-2">
-                  Vessel ID <span className="text-red-500">*</span>
-                </label>
-                <input
-                  id="vesselId"
-                  name="vesselId"
-                  type="text"
-                  required={formData.role === 'captain'}
-                  value={formData.vesselId}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all outline-none placeholder:text-gray-400"
-                  placeholder="Enter your vessel ID"
-                />
-              </div>
-            )}
+            {/* ✅ REMOVED: Vessel ID input field (captains don't need it during registration) */}
 
-            {/* Password Input */}
+            {/* Password */}
             <div>
               <label htmlFor="password" className="block text-sm font-semibold text-gray-700 mb-2">
                 Password
               </label>
               <div className="relative">
                 <input
+                  type={showPassword ? 'text' : 'password'}
                   id="password"
                   name="password"
-                  type={showPassword ? 'text' : 'password'}
-                  required
-                  autoComplete="new-password"
                   value={formData.password}
                   onChange={handleChange}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all outline-none placeholder:text-gray-400"
+                  required
+                  minLength="6"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all pr-12"
                   placeholder="••••••••"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors p-1"
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 transition-colors"
                 >
                   {showPassword ? (
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -205,22 +181,24 @@ const Register = () => {
                   )}
                 </button>
               </div>
+              <p className="text-xs text-gray-500 mt-1">
+                Must be at least 6 characters
+              </p>
             </div>
 
-            {/* Confirm Password Input */}
+            {/* Confirm Password */}
             <div>
               <label htmlFor="confirmPassword" className="block text-sm font-semibold text-gray-700 mb-2">
                 Confirm Password
               </label>
               <input
+                type={showPassword ? 'text' : 'password'}
                 id="confirmPassword"
                 name="confirmPassword"
-                type={showPassword ? 'text' : 'password'}
-                required
-                autoComplete="new-password"
                 value={formData.confirmPassword}
                 onChange={handleChange}
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all outline-none placeholder:text-gray-400"
+                required
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
                 placeholder="••••••••"
               />
             </div>
@@ -229,16 +207,16 @@ const Register = () => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-linear-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white font-semibold py-3 px-4 rounded-xl transition-all duration-200 shadow-lg shadow-cyan-500/30 hover:shadow-xl hover:shadow-cyan-500/40 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-lg"
+              className="w-full bg-linear-to-r from-blue-600 to-cyan-500 hover:from-blue-700 hover:to-cyan-600 text-white font-semibold py-3 px-4 rounded-xl shadow-lg hover:shadow-xl transition-all disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {loading ? (
-                <span className="flex items-center justify-center gap-2">
-                  <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                <>
+                  <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
-                  Creating account...
-                </span>
+                  Creating Account...
+                </>
               ) : (
                 'Create Account'
               )}
@@ -247,9 +225,9 @@ const Register = () => {
 
           {/* Login Link */}
           <div className="mt-6 text-center">
-            <p className="text-gray-600 text-sm">
+            <p className="text-sm text-gray-600">
               Already have an account?{' '}
-              <Link to="/login" className="text-cyan-600 hover:text-cyan-700 font-semibold hover:underline transition-colors">
+              <Link to="/login" className="text-blue-600 hover:text-blue-700 font-semibold hover:underline">
                 Sign in here
               </Link>
             </p>
@@ -257,7 +235,7 @@ const Register = () => {
         </div>
 
         {/* Footer */}
-        <p className="text-center text-xs text-gray-500 mt-6">
+        <p className="text-center text-sm text-gray-500 mt-6">
           © 2025 Marine Vessel Monitor. All rights reserved.
         </p>
       </div>
