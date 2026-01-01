@@ -4,6 +4,8 @@ import { AuthContext } from "../context/AuthContext";
 import api from "../utils/api";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import MySensorWidget from "./MySensorWidget";
+import io from "socket.io-client";
 
 // ✅ React-Lucide Icons
 import {
@@ -81,6 +83,27 @@ const CaptainDashboard = () => {
   });
 
   const [useMapForPosition, setUseMapForPosition] = useState(false);
+
+  const [socket, setSocket] = useState(null);
+
+  useEffect(() => {
+    const newSocket = io(
+      import.meta.env.VITE_SOCKET_URL || "http://localhost:5000",
+      {
+        auth: { token: localStorage.getItem("token") },
+      }
+    );
+
+    setSocket(newSocket);
+
+    newSocket.on("connect", () => {
+      console.log("🔌 Socket.IO connected");
+    });
+
+    return () => {
+      newSocket.disconnect();
+    };
+  }, []);
 
   // Load captain's vessel
   useEffect(() => {
@@ -349,6 +372,13 @@ const CaptainDashboard = () => {
             </div>
           </div>
         </div>
+
+        {/* Sensor Widget */}
+        {vessel && (
+          <div className="mt-6">
+            <MySensorWidget vesselId={vessel._id} socket={socket} />
+          </div>
+        )}
 
         {/* ✅ FIXED: Current Position Map - Reduced Height */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden mb-8">

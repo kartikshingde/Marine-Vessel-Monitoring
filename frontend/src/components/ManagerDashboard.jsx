@@ -2,6 +2,9 @@ import { useContext, useEffect, useState } from "react";
 import { AuthContext } from "../context/AuthContext";
 import { Link } from "react-router-dom";
 import api from "../utils/api";
+import SensorGrid from './SensorGrid';
+import io from 'socket.io-client';
+
 import { 
   Ship, 
   Anchor, 
@@ -43,6 +46,27 @@ const ManagerDashboard = () => {
   });
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState("");
+
+  const [socket, setSocket] = useState(null);
+
+  useEffect(() => {
+  // Connect to Socket.IO
+  const newSocket = io(import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000', {
+    auth: { token: localStorage.getItem('token') }
+  });
+  
+  setSocket(newSocket);
+  
+  newSocket.on('connect', () => {
+    console.log('🔌 Socket.IO connected');
+  });
+
+  return () => {
+    newSocket.disconnect();
+  };
+}, []);
+
+
 
   // Load all data
   useEffect(() => {
@@ -562,6 +586,13 @@ const ManagerDashboard = () => {
               </tbody>
             </table>
           </div>
+
+          {/* Sensor Grid */}
+          <div className="mt-8">
+            <SensorGrid vessels={vessels} socket={socket} />
+          </div>
+
+          
 
           {/* Pagination */}
           {totalPages > 1 && (
