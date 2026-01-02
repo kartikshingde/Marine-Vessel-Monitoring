@@ -97,7 +97,7 @@ async function main() {
     console.log('📡 Publishing sensor data every 10 seconds...\n');
 
     // Run simulation every 5 seconds
-    setInterval(simulateSensors, 5);
+    setInterval(simulateSensors, 5000);
 
     // Run first simulation immediately
     simulateSensors();

@@ -7,7 +7,7 @@ import connectDB from "./src/config/db.js";
 import authRoutes from "./src/routes/auth.js";
 import vesselRoutes from "./src/routes/vessels.js";
 import userRoutes from "./src/routes/users.js";
-import sensorRoutes from './src/routes/sensors.js';
+import sensorRoutes from "./src/routes/sensors.js";
 
 import {
   connectRabbitMQ,
@@ -58,7 +58,7 @@ if (process.env.NODE_ENV === "development") {
 app.use("/api/auth", authRoutes);
 app.use("/api/vessels", vesselRoutes);
 app.use("/api/users", userRoutes);
-app.use("/api/sensors",sensorRoutes)
+app.use("/api/sensors", sensorRoutes);
 
 // Health check endpoint
 app.get("/health", (req, res) => {
@@ -76,18 +76,12 @@ io.on("connection", (socket) => {
   socket.on("disconnect", () => {
     console.log(`❌ Client disconnected: ${socket.id}`);
   });
-  
 
   // Listen for custom events
   socket.on("vessel-update", (data) => {
     console.log("Received vessel update:", data);
   });
 });
-
-//  Start RabbitMQ consumer
-connectRabbitMQ()
-  .then(() => startSensorConsumer(io))
-  .catch((err) => console.error("RabbitMQ startup failed:", err));
 
 // 404 handler
 app.use((req, res) => {
@@ -110,8 +104,16 @@ app.use((err, req, res, next) => {
 // Start server
 const PORT = process.env.PORT || 5000;
 httpServer.listen(PORT, () => {
-  console.log(`\n🚀 Server running on port ${PORT}`);
-  console.log(`📍 Environment: ${process.env.NODE_ENV}`);
+  console.log(`🚀 Server running on port ${PORT}`);
   console.log(`🔗 Health check: http://localhost:${PORT}/health`);
-  console.log(`🔌 Socket.IO ready for connections\n`);
+
+  // Start RabbitMQ AFTER server is live
+  setTimeout(async () => {
+    try {
+      await startSensorConsumer(io);
+      console.log("🐰 RabbitMQ consumer started");
+    } catch (err) {
+      console.error("⚠️ RabbitMQ error (API still running):", err.message);
+    }
+  }, 0);
 });
