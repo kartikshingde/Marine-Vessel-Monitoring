@@ -3,18 +3,10 @@ import { AuthContext } from "../context/AuthContext";
 import { Link } from "react-router-dom";
 import api from "../utils/api";
 import SensorGrid from './SensorGrid';
+import RecentNoonReports from './RecentNoonReports';
+import Toast from './Toast';
 import io from 'socket.io-client';
-
-import { 
-  Ship, 
-  Anchor, 
-  BarChart3, 
-  Map, 
-  Plus, 
-  UserPlus, 
-  X,
-  AlertTriangle
-} from "lucide-react";
+import { Ship, Anchor, BarChart3, Map, Plus, UserPlus, X, AlertTriangle } from "lucide-react";
 
 const ManagerDashboard = () => {
   const { user } = useContext(AuthContext);
@@ -36,44 +28,57 @@ const ManagerDashboard = () => {
   // Create Vessel Modal
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createData, setCreateData] = useState({
-    name: "",
-    mmsi: "",
-    type: "cargo",
-    latitude: "",
-    longitude: "",
-    speed: "0",
-    heading: "0",
+    name: "", mmsi: "", type: "cargo", latitude: "", longitude: "",
+    speed: "0", heading: "0",
   });
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState("");
 
+  // Socket.IO state
   const [socket, setSocket] = useState(null);
 
-  useEffect(() => {
-  // Connect to Socket.IO
-  const newSocket = io(import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000', {
-    auth: { token: localStorage.getItem('token') }
-  });
-  
-  setSocket(newSocket);
-  
-  newSocket.on('connect', () => {
-    console.log('🔌 Socket.IO connected');
-  });
+  // Toast notification state
+  const [toast, setToast] = useState(null);
 
-  return () => {
-    newSocket.disconnect();
+  const showToast = (type, message) => {
+    setToast({ type, message });
   };
-}, []);
 
+  // ✅ SINGLE SOCKET.IO CONNECTION
+  useEffect(() => {
+    const newSocket = io(import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000', {
+      auth: { token: localStorage.getItem('token') }
+    });
 
+    setSocket(newSocket);
+
+    newSocket.on('connect', () => {
+      console.log('🔌 Manager Socket.IO connected');
+    });
+
+    newSocket.on('disconnect', () => {
+      console.log('🔌 Manager Socket.IO disconnected');
+    });
+
+    // Listen for new noon reports
+    newSocket.on('new-noon-report', (data) => {
+      console.log('📨 New noon report notification:', data);
+      showToast('success', `📋 New noon report from ${data.report.vesselId?.name}`);
+      
+      // Update report count
+      setNoonReportCount(prev => prev + 1);
+    });
+
+    return () => {
+      newSocket.disconnect();
+    };
+  }, []);
 
   // Load all data
   useEffect(() => {
     const loadData = async () => {
       try {
         setLoading(true);
-        
         const vesselsRes = await api.get("/vessels");
         console.log("📦 Vessels loaded:", vesselsRes.data.data);
         setVessels(vesselsRes.data.data || []);
@@ -100,10 +105,9 @@ const ManagerDashboard = () => {
     loadData();
   }, []);
 
-  // ✅ FIXED: Calculate unassigned count properly
+  // Calculate unassigned count properly
   const unassignedCount = vessels.filter(v => {
     if (!v.captainId) return true;
-    // Handle populated captain object
     if (typeof v.captainId === 'object' && !v.captainId._id) return true;
     return false;
   }).length;
@@ -124,25 +128,21 @@ const ManagerDashboard = () => {
     try {
       setAssigning(true);
       setAssignError("");
-
       await api.put(`/vessels/${assignData.vesselId}`, {
         captainId: assignData.captainId
       });
 
-      // ✅ FIXED: Update local state with proper captain object
       const assignedCaptain = captains.find(c => c._id === assignData.captainId);
-      
-      setVessels(prev => 
-        prev.map(v => 
-          v._id === assignData.vesselId 
-            ? { ...v, captainId: assignedCaptain || assignData.captainId }
-            : v
-        )
-      );
+      setVessels(prev => prev.map(v =>
+        v._id === assignData.vesselId
+          ? { ...v, captainId: assignedCaptain || assignData.captainId }
+          : v
+      ));
 
       setAssignData({ vesselId: "", captainId: "" });
       setShowAssignModal(false);
       setAssigning(false);
+      showToast('success', 'Captain assigned successfully!');
     } catch (error) {
       console.error("Assign error:", error);
       setAssignError(error.response?.data?.message || "Failed to assign captain");
@@ -158,12 +158,10 @@ const ManagerDashboard = () => {
 
   const handleCreateSubmit = async (e) => {
     e.preventDefault();
-
     if (!createData.name || !createData.mmsi) {
       setCreateError("Vessel name and MMSI are required");
       return;
     }
-
     if (!createData.latitude || !createData.longitude) {
       setCreateError("Position (latitude and longitude) is required");
       return;
@@ -188,21 +186,14 @@ const ManagerDashboard = () => {
       };
 
       const { data } = await api.post("/vessels", payload);
-
       setVessels(prev => [data.data, ...prev]);
-
       setCreateData({
-        name: "",
-        mmsi: "",
-        type: "cargo",
-        latitude: "",
-        longitude: "",
-        speed: "0",
-        heading: "0",
+        name: "", mmsi: "", type: "cargo", latitude: "", longitude: "",
+        speed: "0", heading: "0",
       });
-
       setShowCreateModal(false);
       setCreating(false);
+      showToast('success', `Vessel ${createData.name} created successfully!`);
     } catch (error) {
       console.error("Create vessel error:", error);
       setCreateError(error.response?.data?.message || "Failed to create vessel");
@@ -210,39 +201,22 @@ const ManagerDashboard = () => {
     }
   };
 
-  // ✅ FIXED: Properly handle both ObjectId and populated captain objects
   const getCaptainName = (captainId) => {
     if (!captainId) return "Unassigned";
-    
-    console.log("🔍 Getting captain name for:", captainId);
-    
-    // Handle populated captain object
     if (typeof captainId === 'object' && captainId.name) {
-      console.log("✅ Found populated captain:", captainId.name);
       return captainId.name;
     }
-    
-    // Handle ObjectId string - find captain by ID
     const captainIdString = captainId._id ? captainId._id.toString() : captainId.toString();
     const captain = captains.find(c => c._id.toString() === captainIdString);
-    
-    console.log("🔍 Looking for captain ID:", captainIdString);
-    console.log("✅ Found captain:", captain?.name || "Not found");
-    
     return captain ? captain.name : "Unassigned";
   };
 
-  // ✅ FIXED: Get assigned vessel for captain
   const getAssignedVessel = (captainId) => {
     return vessels.find(v => {
       if (!v.captainId) return false;
-      
-      // Handle populated captain object
       if (typeof v.captainId === 'object' && v.captainId._id) {
         return v.captainId._id.toString() === captainId.toString();
       }
-      
-      // Handle ObjectId string
       return v.captainId.toString() === captainId.toString();
     });
   };
@@ -253,8 +227,8 @@ const ManagerDashboard = () => {
     const diff = Math.floor((now - new Date(timestamp)) / 60000);
     if (diff < 1) return "Just now";
     if (diff < 60) return `${diff}m ago`;
-    if (diff < 1440) return `${Math.floor(diff/60)}h ago`;
-    return `${Math.floor(diff/1440)}d ago`;
+    if (diff < 1440) return `${Math.floor(diff / 60)}h ago`;
+    return `${Math.floor(diff / 1440)}d ago`;
   };
 
   const isNoonOverdue = (vessel) => {
@@ -268,315 +242,225 @@ const ManagerDashboard = () => {
   const indexOfFirstVessel = indexOfLastVessel - vesselsPerPage;
   const currentVessels = vessels.slice(indexOfFirstVessel, indexOfLastVessel);
   const totalPages = Math.ceil(vessels.length / vesselsPerPage);
-
   const paginate = (pageNumber) => setCurrentPage(pageNumber);
 
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
-          <p className="text-gray-600">Loading dashboard...</p>
+          <Ship className="w-12 h-12 animate-bounce mx-auto mb-4 text-blue-600" />
+          <p className="text-gray-600 text-lg">Loading dashboard...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="w-full px-6 lg:px-8 py-8 max-w-7xl mx-auto">
-        {/* Welcome Section */}
+    <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
         <div className="mb-8">
-          <h2 className="text-3xl font-bold text-gray-900">
-            Welcome back, {user?.name}! 👋
-          </h2>
-          <p className="text-gray-600 mt-2">
+          <h1 className="text-3xl font-bold text-gray-900">⚓ Manager Dashboard</h1>
+          <p className="mt-2 text-gray-600">
             Manage your fleet and assign captains to vessels.
           </p>
         </div>
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 hover:shadow-lg transition-shadow">
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-12 h-12 bg-linear-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg">
-                <Ship className="w-6 h-6 text-white" />
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <div className="bg-white rounded-lg shadow-lg p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600">Total Vessels</p>
+                <p className="text-3xl font-bold text-gray-900">{vessels.length}</p>
+                <p className="text-xs text-gray-500 mt-1">Fleet size</p>
               </div>
+              <Ship className="w-12 h-12 text-blue-600" />
             </div>
-            <h3 className="text-3xl font-bold text-gray-900 mb-1">
-              {vessels.length}
-            </h3>
-            <p className="text-sm font-medium text-gray-600 mb-2">Total Vessels</p>
-            <p className="text-xs text-gray-500">Fleet size</p>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 hover:shadow-lg transition-shadow">
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-12 h-12 bg-linear-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
-                <Anchor className="w-6 h-6 text-white" />
+          <div className="bg-white rounded-lg shadow-lg p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600">Total Captains</p>
+                <p className="text-3xl font-bold text-gray-900">{captains.length}</p>
+                <p className="text-xs text-gray-500 mt-1">
+                  {captains.length > 0 ? "All active" : "No captains"}
+                </p>
               </div>
+              <Anchor className="w-12 h-12 text-green-600" />
             </div>
-            <h3 className="text-3xl font-bold text-gray-900 mb-1">
-              {captains.length}
-            </h3>
-            <p className="text-sm font-medium text-gray-600 mb-2">Total Captains</p>
-            <p className="text-xs text-gray-500">{captains.length > 0 ? "All active" : "No captains"}</p>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 hover:shadow-lg transition-shadow">
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-12 h-12 bg-linear-to-br from-orange-500 to-orange-600 rounded-xl flex items-center justify-center shadow-lg">
-                <Ship className="w-6 h-6 text-white" />
+          <div className="bg-white rounded-lg shadow-lg p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600">Unassigned Vessels</p>
+                <p className="text-3xl font-bold text-gray-900">{unassignedCount}</p>
+                <p className="text-xs text-gray-500 mt-1">Ready to assign</p>
               </div>
+              <AlertTriangle className={`w-12 h-12 ${unassignedCount > 0 ? 'text-yellow-600' : 'text-gray-400'}`} />
             </div>
-            <h3 className="text-3xl font-bold text-gray-900 mb-1">
-              {unassignedCount}
-            </h3>
-            <p className="text-sm font-medium text-gray-600 mb-2">Unassigned Vessels</p>
-            <p className="text-xs text-gray-500">Ready to assign</p>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 hover:shadow-lg transition-shadow">
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-12 h-12 bg-linear-to-br from-green-500 to-green-600 rounded-xl flex items-center justify-center shadow-lg">
-                <BarChart3 className="w-6 h-6 text-white" />
+          <div className="bg-white rounded-lg shadow-lg p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600">Total Reports</p>
+                <p className="text-3xl font-bold text-gray-900">{noonReportCount}</p>
+                <p className="text-xs text-gray-500 mt-1">All noon submissions</p>
               </div>
+              <BarChart3 className="w-12 h-12 text-purple-600" />
             </div>
-            <h3 className="text-3xl font-bold text-gray-900 mb-1">
-              {noonReportCount}
-            </h3>
-            <p className="text-sm font-medium text-gray-600 mb-2">Total Reports</p>
-            <p className="text-xs text-gray-500">All noon submissions</p>
           </div>
         </div>
 
         {/* Quick Actions */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <Link to="/map">
-            <div className="bg-linear-to-br from-blue-500 to-blue-600 rounded-2xl p-6 text-white shadow-lg hover:shadow-xl transition-shadow cursor-pointer">
-              <Map className="w-10 h-10 mb-3" />
-              <h4 className="text-lg font-bold mb-2">View Live Map</h4>
-              <p className="text-blue-100 text-sm">
-                Track all vessels on interactive map
-              </p>
-            </div>
-          </Link>
-
           <button
             onClick={() => setShowCreateModal(true)}
-            className="bg-linear-to-br from-cyan-500 to-cyan-600 rounded-2xl p-6 text-white shadow-lg hover:shadow-xl transition-shadow text-left"
+            className="bg-blue-600 text-white p-6 rounded-lg shadow-lg hover:bg-blue-700 transition flex items-center justify-center gap-3 font-semibold text-lg"
           >
-            <Plus className="w-10 h-10 mb-3" />
-            <h4 className="text-lg font-bold mb-2">Create Vessel</h4>
-            <p className="text-cyan-100 text-sm">
-              Add new vessel to fleet
-            </p>
+            <Plus className="w-6 h-6" />
+            Create New Vessel
           </button>
 
           <button
             onClick={() => setShowAssignModal(true)}
-            className="bg-linear-to-br from-emerald-500 to-emerald-600 rounded-2xl p-6 text-white shadow-lg hover:shadow-xl transition-shadow text-left"
+            className="bg-green-600 text-white p-6 rounded-lg shadow-lg hover:bg-green-700 transition flex items-center justify-center gap-3 font-semibold text-lg"
           >
-            <UserPlus className="w-10 h-10 mb-3" />
-            <h4 className="text-lg font-bold mb-2">Assign Captain</h4>
-            <p className="text-emerald-100 text-sm">
-              Link vessels to captains
-            </p>
+            <UserPlus className="w-6 h-6" />
+            Assign Captain
           </button>
+
+          <Link
+            to="/map"
+            className="bg-purple-600 text-white p-6 rounded-lg shadow-lg hover:bg-purple-700 transition flex items-center justify-center gap-3 font-semibold text-lg"
+          >
+            <Map className="w-6 h-6" />
+            View Fleet Map
+          </Link>
         </div>
 
-        {/* Captains & Unassigned Vessels */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-          {/* Unassigned Vessels */}
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200 bg-linear-to-r from-orange-50 to-yellow-50">
-              <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                <Ship className="w-5 h-5 text-orange-600" />
-                Unassigned Vessels ({unassignedCount})
-              </h3>
-            </div>
-            <div className="p-6">
-              {unassignedCount === 0 ? (
-                <p className="text-center text-gray-500 py-8">All vessels assigned! 🎉</p>
-              ) : (
-                <div className="space-y-3 max-h-64 overflow-y-auto">
-                  {vessels.filter(v => !v.captainId || (typeof v.captainId === 'object' && !v.captainId._id)).map((vessel) => (
-                    <div key={vessel._id} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
-                      <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 bg-linear-to-br from-gray-500 to-gray-600 rounded-xl flex items-center justify-center text-white font-bold text-sm">
-                          {vessel.name.charAt(0)}
-                        </div>
-                        <div>
-                          <p className="font-semibold text-gray-900">{vessel.name}</p>
-                          <p className="text-sm text-gray-500">MMSI: {vessel.mmsi}</p>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => {
-                          setAssignData({ vesselId: vessel._id, captainId: "" });
-                          setShowAssignModal(true);
-                        }}
-                        className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-                      >
-                        Assign Now
-                      </button>
-                    </div>
-                  ))}
+        {/* ✅ SENSOR GRID - WITH SOCKET */}
+        <div className="mb-8">
+          <SensorGrid vessels={vessels} socket={socket} />
+        </div>
+
+        {/* ✅ RECENT NOON REPORTS - WITH SOCKET */}
+        <div className="mb-8">
+          <RecentNoonReports socket={socket} />
+        </div>
+
+        {/* Vessel Management Section */}
+        <div className="bg-white rounded-lg shadow-lg p-6">
+          <h2 className="text-2xl font-bold text-gray-800 mb-6">Fleet Management</h2>
+
+          {/* Unassigned Vessels Warning */}
+          {unassignedCount > 0 ? (
+            <div className="mb-6 p-4 bg-yellow-50 border-l-4 border-yellow-500 rounded-lg">
+              <div className="flex items-center gap-3">
+                <AlertTriangle className="w-5 h-5 text-yellow-600" />
+                <div>
+                  <h3 className="font-bold text-yellow-800">
+                    {unassignedCount} vessel{unassignedCount > 1 ? 's' : ''} without captain
+                  </h3>
+                  <p className="text-sm text-yellow-700">
+                    Assign captains to manage these vessels
+                  </p>
                 </div>
-              )}
-            </div>
-          </div>
-
-          {/* Captains Status */}
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200 bg-linear-to-r from-purple-50 to-indigo-50">
-              <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                <Anchor className="w-5 h-5 text-purple-600" />
-                Captains ({captains.length})
-              </h3>
-            </div>
-            <div className="p-6 max-h-64 overflow-y-auto">
-              {captains.length === 0 ? (
-                <p className="text-center text-gray-500 py-8">No captains registered</p>
-              ) : (
-                captains.map((captain) => {
-                  const assignedVessel = getAssignedVessel(captain._id);
-                  return (
-                    <div key={captain._id} className="flex items-center justify-between p-4 bg-linear-to-r from-white to-gray-50 rounded-xl mb-3 last:mb-0 hover:shadow-sm transition-all">
-                      <div className="flex items-center gap-3 flex-1">
-                        <div className="w-10 h-10 bg-linear-to-br from-purple-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold">
-                          {captain.name.charAt(0)}
-                        </div>
-                        <div>
-                          <p className="font-semibold text-gray-900">{captain.name}</p>
-                          <p className="text-xs text-gray-500">{captain.email}</p>
-                        </div>
-                      </div>
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                        assignedVessel 
-                          ? 'bg-green-100 text-green-800 border border-green-200' 
-                          : 'bg-gray-100 text-gray-800 border border-gray-200'
-                      }`}>
-                        {assignedVessel ? assignedVessel.name : 'No Vessel'}
-                      </span>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* ALL Vessels Table with Pagination */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-200 bg-linear-to-r from-blue-50 to-cyan-50">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-bold text-gray-900">All Vessels</h3>
-                <p className="text-sm text-gray-600 mt-1">
-                  Showing {indexOfFirstVessel + 1}-{Math.min(indexOfLastVessel, vessels.length)} of {vessels.length}
-                </p>
-              </div>
-              <div className="text-sm text-gray-500">
-                Page {currentPage} of {totalPages}
               </div>
             </div>
-          </div>
+          ) : (
+            <div className="mb-6 p-4 bg-green-50 border-l-4 border-green-500 rounded-lg">
+              <p className="text-green-800 font-semibold">All vessels assigned! 🎉</p>
+            </div>
+          )}
 
+          {/* Vessel Table */}
           <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b border-gray-200">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Vessel
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Captain
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Status
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Speed
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Last Noon
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200">
+              <tbody className="bg-white divide-y divide-gray-200">
                 {currentVessels.map((vessel) => {
                   const overdue = isNoonOverdue(vessel);
                   return (
-                    <tr key={vessel._id} className="hover:bg-gray-50 transition-colors">
+                    <tr key={vessel._id} className="hover:bg-gray-50 transition">
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-linear-to-br from-blue-500 to-cyan-500 rounded-lg flex items-center justify-center text-white font-semibold shadow">
-                            {vessel.name.charAt(0)}
+                        <div className="flex items-center">
+                          <div className="flex-shrink-0 h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center">
+                            <span className="text-blue-600 font-bold text-lg">
+                              {vessel.name.charAt(0)}
+                            </span>
                           </div>
-                          <div>
-                            <span className="font-medium text-gray-900">{vessel.name}</span>
-                            <p className="text-xs text-gray-500">MMSI: {vessel.mmsi}</p>
+                          <div className="ml-4">
+                            <div className="text-sm font-medium text-gray-900">{vessel.name}</div>
+                            <div className="text-sm text-gray-500">MMSI: {vessel.mmsi}</div>
                           </div>
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="text-sm font-medium text-gray-900">
+                        <span
+                          className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                            getCaptainName(vessel.captainId) === "Unassigned"
+                              ? "bg-red-100 text-red-800"
+                              : "bg-green-100 text-green-800"
+                          }`}
+                        >
                           {getCaptainName(vessel.captainId)}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span
-                          className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium ${
+                          className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
                             vessel.status === "active"
-                              ? "bg-green-50 text-green-700 border border-green-200"
-                              : "bg-gray-50 text-gray-700 border border-gray-200"
+                              ? "bg-green-100 text-green-800"
+                              : "bg-gray-100 text-gray-800"
                           }`}
                         >
-                          <span
-                            className={`w-2 h-2 rounded-full ${
-                              vessel.status === "active"
-                                ? "bg-green-500 animate-pulse"
-                                : "bg-gray-400"
-                            }`}
-                          ></span>
                           {vessel.status}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {vessel.speed || 0} knots
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
                         {overdue ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-1 bg-red-50 text-red-700 rounded-lg text-xs font-medium border border-red-200">
-                            <AlertTriangle className="w-3 h-3" />
-                            OVERDUE
+                          <span className="text-red-600 font-semibold">
+                            ⚠️ {formatTimeAgo(vessel.lastNoonReportAt)}
                           </span>
                         ) : (
-                          <span className="text-sm text-gray-600">
+                          <span className="text-gray-600">
                             {formatTimeAgo(vessel.lastNoonReportAt)}
                           </span>
                         )}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <button 
-                          onClick={() => {
-                            // ✅ FIXED: Extract captain ID properly
-                            const captainIdValue = vessel.captainId?._id || vessel.captainId || "";
-                            setAssignData({ 
-                              vesselId: vessel._id, 
-                              captainId: captainIdValue
-                            });
-                            setShowAssignModal(true);
-                          }}
-                          className="text-blue-600 hover:text-blue-700 hover:underline mr-3"
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        <Link
+                          to={`/track/${vessel._id}`}
+                          className="text-blue-600 hover:text-blue-900 font-medium"
                         >
-                          Reassign
-                        </button>
-                        <Link to={`/map`} className="text-emerald-600 hover:text-emerald-700 hover:underline">
                           Track →
                         </Link>
                       </td>
@@ -587,81 +471,174 @@ const ManagerDashboard = () => {
             </table>
           </div>
 
-          {/* Sensor Grid */}
-          <div className="mt-8">
-            <SensorGrid vessels={vessels} socket={socket} />
-          </div>
-
-          
-
           {/* Pagination */}
           {totalPages > 1 && (
-            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
-              <div className="flex items-center justify-center gap-2">
-                <button
-                  onClick={() => paginate(currentPage - 1)}
-                  disabled={currentPage === 1}
-                  className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Previous
-                </button>
-                
-                {[...Array(totalPages)].map((_, i) => (
+            <div className="mt-6 flex items-center justify-between">
+              <div className="text-sm text-gray-700">
+                Showing {indexOfFirstVessel + 1}-{Math.min(indexOfLastVessel, vessels.length)} of{" "}
+                {vessels.length}
+              </div>
+              <div className="flex gap-2">
+                {[...Array(totalPages)].map((_, idx) => (
                   <button
-                    key={i + 1}
-                    onClick={() => paginate(i + 1)}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium ${
-                      currentPage === i + 1
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                    key={idx}
+                    onClick={() => paginate(idx + 1)}
+                    className={`px-4 py-2 rounded ${
+                      currentPage === idx + 1
+                        ? "bg-blue-600 text-white"
+                        : "bg-gray-200 text-gray-700 hover:bg-gray-300"
                     }`}
                   >
-                    {i + 1}
+                    {idx + 1}
                   </button>
                 ))}
-
-                <button
-                  onClick={() => paginate(currentPage + 1)}
-                  disabled={currentPage === totalPages}
-                  className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Next
-                </button>
               </div>
+            </div>
+          )}
+        </div>
+
+        {/* Captain List */}
+        <div className="bg-white rounded-lg shadow-lg p-6 mt-8">
+          <h2 className="text-2xl font-bold text-gray-800 mb-6">Captain Directory</h2>
+          {captains.length === 0 ? (
+            <p className="text-gray-600">No captains registered</p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {captains.map((captain) => {
+                const assignedVessel = getAssignedVessel(captain._id);
+                return (
+                  <div
+                    key={captain._id}
+                    className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition"
+                  >
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                        <span className="text-blue-600 font-bold">
+                          {captain.name.charAt(0)}
+                        </span>
+                      </div>
+                      <div>
+                        <p className="font-semibold text-gray-900">{captain.name}</p>
+                        <p className="text-xs text-gray-500">{captain.email}</p>
+                      </div>
+                    </div>
+                    <div className="mt-3">
+                      {assignedVessel ? (
+                        <p className="text-sm text-green-600 font-medium">
+                          ⚓ {assignedVessel.name}
+                        </p>
+                      ) : (
+                        <p className="text-sm text-gray-500">No vessel assigned</p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
       </div>
 
-      {/* Create Vessel Modal */}
-      {showCreateModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-8 border-b border-gray-200">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
-                  <Plus className="w-6 h-6 text-cyan-600" />
-                  Create New Vessel
-                </h3>
-                <button
-                  onClick={() => setShowCreateModal(false)}
-                  className="text-gray-400 hover:text-gray-600 p-2 -m-2 rounded-xl hover:bg-gray-100 transition-colors"
-                >
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
+      {/* Assign Captain Modal */}
+      {showAssignModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-2xl font-bold text-gray-900">Assign Captain</h2>
+              <button onClick={() => setShowAssignModal(false)} className="text-gray-500 hover:text-gray-700">
+                <X className="w-6 h-6" />
+              </button>
             </div>
 
-            <form onSubmit={handleCreateSubmit} className="p-8 space-y-6">
+            <form onSubmit={handleAssignSubmit}>
+              {assignError && (
+                <div className="mb-4 p-3 bg-red-50 border-l-4 border-red-500 text-red-700 text-sm">
+                  {assignError}
+                </div>
+              )}
+
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Select Vessel
+                </label>
+                <select
+                  name="vesselId"
+                  value={assignData.vesselId}
+                  onChange={handleAssignChange}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  required
+                >
+                  <option value="">Choose a vessel...</option>
+                  {vessels.map((vessel) => (
+                    <option key={vessel._id} value={vessel._id}>
+                      {vessel.name} (MMSI: {vessel.mmsi})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Select Captain
+                </label>
+                <select
+                  name="captainId"
+                  value={assignData.captainId}
+                  onChange={handleAssignChange}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  required
+                >
+                  <option value="">Choose a captain...</option>
+                  {captains.map((captain) => (
+                    <option key={captain._id} value={captain._id}>
+                      {captain.name} - {captain.email}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowAssignModal(false)}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={assigning}
+                  className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
+                >
+                  {assigning ? "Assigning..." : "Assign"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Create Vessel Modal */}
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 overflow-y-auto">
+          <div className="bg-white rounded-lg max-w-2xl w-full p-6 m-4">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-2xl font-bold text-gray-900">Create New Vessel</h2>
+              <button onClick={() => setShowCreateModal(false)} className="text-gray-500 hover:text-gray-700">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateSubmit}>
               {createError && (
-                <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+                <div className="mb-4 p-3 bg-red-50 border-l-4 border-red-500 text-red-700 text-sm">
                   {createError}
                 </div>
               )}
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
                     Vessel Name *
                   </label>
                   <input
@@ -669,129 +646,101 @@ const ManagerDashboard = () => {
                     name="name"
                     value={createData.name}
                     onChange={handleCreateChange}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     required
-                    placeholder="e.g., SS Discovery"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent outline-none"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    MMSI (9 digits) *
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    MMSI *
                   </label>
                   <input
                     type="text"
                     name="mmsi"
                     value={createData.mmsi}
                     onChange={handleCreateChange}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     required
-                    maxLength="9"
-                    pattern="[0-9]{9}"
-                    placeholder="e.g., 123456789"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent outline-none"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
                     Vessel Type
                   </label>
                   <select
                     name="type"
                     value={createData.type}
                     onChange={handleCreateChange}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent outline-none bg-white"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="cargo">Cargo</option>
                     <option value="tanker">Tanker</option>
+                    <option value="container">Container</option>
                     <option value="passenger">Passenger</option>
-                    <option value="fishing">Fishing</option>
-                    <option value="military">Military</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Latitude *
-                  </label>
-                  <input
-                    type="number"
-                    name="latitude"
-                    value={createData.latitude}
-                    onChange={handleCreateChange}
-                    required
-                    step="0.000001"
-                    min="-90"
-                    max="90"
-                    placeholder="e.g., 19.0760"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Longitude *
-                  </label>
-                  <input
-                    type="number"
-                    name="longitude"
-                    value={createData.longitude}
-                    onChange={handleCreateChange}
-                    required
-                    step="0.000001"
-                    min="-180"
-                    max="180"
-                    placeholder="e.g., 72.8777"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
                     Speed (knots)
                   </label>
                   <input
                     type="number"
+                    step="0.1"
                     name="speed"
                     value={createData.speed}
                     onChange={handleCreateChange}
-                    step="0.1"
-                    min="0"
-                    placeholder="0"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent outline-none"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Heading (degrees)
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Latitude *
                   </label>
                   <input
                     type="number"
-                    name="heading"
-                    value={createData.heading}
+                    step="0.000001"
+                    name="latitude"
+                    value={createData.latitude}
                     onChange={handleCreateChange}
-                    step="1"
-                    min="0"
-                    max="360"
-                    placeholder="0"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent outline-none"
+                    placeholder="e.g., 28.6139"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Longitude *
+                  </label>
+                  <input
+                    type="number"
+                    step="0.000001"
+                    name="longitude"
+                    value={createData.longitude}
+                    onChange={handleCreateChange}
+                    placeholder="e.g., 77.2090"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    required
                   />
                 </div>
               </div>
 
-              <div className="flex gap-3 pt-4">
+              <div className="flex gap-3">
                 <button
                   type="button"
                   onClick={() => setShowCreateModal(false)}
-                  className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-900 font-semibold py-3 px-4 rounded-xl transition-colors"
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={creating}
-                  className="flex-1 bg-linear-to-r from-cyan-500 to-cyan-600 hover:from-cyan-600 hover:to-cyan-700 text-white font-semibold py-3 px-4 rounded-xl shadow-lg hover:shadow-xl transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
                 >
                   {creating ? "Creating..." : "Create Vessel"}
                 </button>
@@ -801,91 +750,13 @@ const ManagerDashboard = () => {
         </div>
       )}
 
-      {/* Assign Captain Modal */}
-      {showAssignModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-8 border-b border-gray-200">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
-                  <UserPlus className="w-6 h-6 text-emerald-600" />
-                  Assign Captain
-                </h3>
-                <button
-                  onClick={() => setShowAssignModal(false)}
-                  className="text-gray-400 hover:text-gray-600 p-2 -m-2 rounded-xl hover:bg-gray-100 transition-colors"
-                >
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
-            </div>
-
-            <form onSubmit={handleAssignSubmit} className="p-8 space-y-6">
-              {assignError && (
-                <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
-                  {assignError}
-                </div>
-              )}
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Select Vessel
-                </label>
-                <select
-                  name="vesselId"
-                  value={assignData.vesselId}
-                  onChange={handleAssignChange}
-                  required
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
-                >
-                  <option value="">Choose vessel...</option>
-                  {vessels.map((vessel) => (
-                    <option key={vessel._id} value={vessel._id}>
-                      {vessel.name} ({vessel.mmsi})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Select Captain
-                </label>
-                <select
-                  name="captainId"
-                  value={assignData.captainId}
-                  onChange={handleAssignChange}
-                  required
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
-                >
-                  <option value="">Choose captain...</option>
-                  {captains.map((captain) => (
-                    <option key={captain._id} value={captain._id}>
-                      {captain.name} ({captain.email})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="flex gap-3 pt-4">
-                <button
-                  type="button"
-                  onClick={() => setShowAssignModal(false)}
-                  className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-900 font-semibold py-3 px-4 rounded-xl transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={assigning}
-                  className="flex-1 bg-linear-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-semibold py-3 px-4 rounded-xl shadow-lg hover:shadow-xl transition-all disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  {assigning ? "Assigning..." : "Assign Captain"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+      {/* ✅ TOAST NOTIFICATIONS */}
+      {toast && (
+        <Toast
+          type={toast.type}
+          message={toast.message}
+          onClose={() => setToast(null)}
+        />
       )}
     </div>
   );

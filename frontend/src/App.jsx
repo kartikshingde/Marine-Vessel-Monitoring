@@ -5,6 +5,7 @@ import Register from './components/Register';
 import Dashboard from './components/Dashboard';
 import VesselMap from './components/VesselMap';
 import Navbar from './components/Navbar';
+import TrackVessel from './components/TrackVessel';
 import ProtectedRoute from './components/ProtectedRoute';
 
 function App() {
@@ -33,6 +34,15 @@ function App() {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/track/:id"
+            element={
+              <ProtectedRoute>
+                <TrackVessel />
+              </ProtectedRoute>
+            }
+          />
+          
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </BrowserRouter>
