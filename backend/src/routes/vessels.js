@@ -20,6 +20,24 @@ const ensureCaptainOwnsVessel = (user, vessel) => {
 };
 
 /**
+ * Helper: Calculate distance between two coordinates (Haversine formula)
+ */
+const calculateDistance = (lat1, lon1, lat2, lon2) => {
+  const R = 3440.065; // Earth radius in nautical miles
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  const distance = R * c;
+  return distance;
+};
+
+/**
  * GET /api/vessels
  * Manager: all vessels (populated)
  * Captain: only own vessel(s)
@@ -80,6 +98,39 @@ router.get('/noon-reports-count', protect, restrictTo('manager'), async (req, re
     });
   }
 });
+
+/**
+ * GET /api/vessels/noon-reports/recent
+ * Get recent noon reports from all vessels (Manager only)
+ */
+router.get(
+  '/noon-reports/recent',
+  protect,
+  restrictTo('manager'),
+  async (req, res) => {
+    try {
+      const { limit = 10 } = req.query;
+
+      const reports = await NoonReport.find()
+        .populate('vesselId', 'name mmsi')
+        .populate('captainId', 'name email')
+        .sort({ reportedAt: -1 })
+        .limit(parseInt(limit));
+
+      res.status(200).json({
+        success: true,
+        count: reports.length,
+        data: reports,
+      });
+    } catch (error) {
+      console.error('Get recent reports error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to fetch recent reports',
+      });
+    }
+  }
+);
 
 /**
  * POST /api/vessels
@@ -477,6 +528,7 @@ router.get('/:id/weather', protect, async (req, res) => {
 
 /**
  * POST /api/vessels/:id/noon-report
+ *  ENHANCED: Auto-calculate distance, validate fuel, broadcast to managers
  */
 router.post('/:id/noon-report', protect, async (req, res) => {
   try {
@@ -509,20 +561,71 @@ router.post('/:id/noon-report', protect, async (req, res) => {
       });
     }
 
+    // ✅ VALIDATION: Fuel consumed cannot exceed ROB
+    if (fuelConsumedSinceLastNoon && fuelRob) {
+      if (fuelConsumedSinceLastNoon > fuelRob) {
+        return res.status(400).json({
+          success: false,
+          message: 'Fuel consumed cannot exceed Remaining on Board (ROB)',
+        });
+      }
+    }
+
+    // ✅ AUTO-CALCULATE DISTANCE if not provided
+    let calculatedDistance = distanceSinceLastNoon;
+    
+    if (!calculatedDistance) {
+      // Get last noon report to calculate distance
+      const lastReport = await NoonReport.findOne({ vesselId: vessel._id })
+        .sort({ reportedAt: -1 })
+        .limit(1);
+
+      if (lastReport && lastReport.position) {
+        calculatedDistance = calculateDistance(
+          lastReport.position.latitude,
+          lastReport.position.longitude,
+          position.latitude,
+          position.longitude
+        );
+        console.log(`📏 Auto-calculated distance: ${calculatedDistance.toFixed(2)} nm`);
+      }
+    }
+
     const report = await NoonReport.create({
       vesselId: vessel._id,
       captainId: req.user._id,
       reportedAt: reportedAt || new Date(),
-      position, averageSpeed, distanceSinceLastNoon, courseOverGround,
-      fuelRob, fuelConsumedSinceLastNoon, mainEngineRpm, mainEnginePower,
-      weather, voyageNo, nextPort, eta,
+      position,
+      averageSpeed,
+      distanceSinceLastNoon: calculatedDistance,
+      courseOverGround,
+      fuelRob,
+      fuelConsumedSinceLastNoon,
+      mainEngineRpm,
+      mainEnginePower,
+      weather,
+      voyageNo,
+      nextPort,
+      eta,
     });
 
     vessel.lastNoonReportAt = report.reportedAt;
     vessel.lastNoonReportId = report._id;
     await vessel.save();
 
+    // ✅ BROADCAST: Notify all managers via Socket.IO
     const io = req.app.get('io');
+    
+    // Populate report for broadcast
+    const populatedReport = await NoonReport.findById(report._id)
+      .populate('vesselId', 'name mmsi')
+      .populate('captainId', 'name email');
+
+    io.emit('new-noon-report', {
+      report: populatedReport,
+      message: `New noon report from ${vessel.name}`,
+    });
+
     io.emit('noon-report-created', {
       vesselId: vessel._id,
       reportSummary: {
@@ -537,6 +640,8 @@ router.post('/:id/noon-report', protect, async (req, res) => {
         eta: report.eta,
       },
     });
+
+    console.log('📡 Broadcasted new noon report to all clients');
 
     res.status(201).json({
       success: true,

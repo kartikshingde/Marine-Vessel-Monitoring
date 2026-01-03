@@ -21,13 +21,18 @@ dotenv.config();
 const app = express();
 const httpServer = createServer(app);
 
-// Socket.IO setup
+// ✅ FIXED Socket.IO setup
 const io = new Server(httpServer, {
   cors: {
     origin: process.env.CLIENT_URL || "http://localhost:5173",
-    methods: ["GET", "POST"],
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true,
   },
+  allowEIO3: true,
+  transports: ["websocket", "polling"],
+  pingTimeout: 60000,
+  pingInterval: 25000,
 });
 
 // Connect to MongoDB
@@ -46,13 +51,11 @@ app.use(express.urlencoded({ extended: true }));
 // Make io accessible to routes
 app.set("io", io);
 
-// Request logger (development only)
-if (process.env.NODE_ENV === "development") {
-  app.use((req, res, next) => {
-    console.log(`${req.method} ${req.path}`);
-    next();
-  });
-}
+// Request logger
+app.use((req, res, next) => {
+  console.log(`📨 ${req.method} ${req.path}`);
+  next();
+});
 
 // API Routes
 app.use("/api/auth", authRoutes);
@@ -77,7 +80,6 @@ io.on("connection", (socket) => {
     console.log(`❌ Client disconnected: ${socket.id}`);
   });
 
-  // Listen for custom events
   socket.on("vessel-update", (data) => {
     console.log("Received vessel update:", data);
   });
@@ -103,17 +105,17 @@ app.use((err, req, res, next) => {
 
 // Start server
 const PORT = process.env.PORT || 5000;
-httpServer.listen(PORT, () => {
+httpServer.listen(PORT, async () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`🔗 Health check: http://localhost:${PORT}/health`);
+  console.log(`🔌 Socket.IO ready on ws://localhost:${PORT}`);
 
-  // Start RabbitMQ AFTER server is live
-  setTimeout(async () => {
-    try {
-      await startSensorConsumer(io);
-      console.log("🐰 RabbitMQ consumer started");
-    } catch (err) {
-      console.error("⚠️ RabbitMQ error (API still running):", err.message);
-    }
-  }, 0);
+  // Start RabbitMQ
+  try {
+    await connectRabbitMQ();
+    await startSensorConsumer(io);
+    console.log("✅ RabbitMQ consumer started");
+  } catch (err) {
+    console.error("⚠️ RabbitMQ error:", err.message);
+  }
 });
