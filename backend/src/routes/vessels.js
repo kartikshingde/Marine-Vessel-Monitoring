@@ -11,7 +11,6 @@ const router = express.Router();
  */
 const ensureCaptainOwnsVessel = (user, vessel) => {
   if (user.role !== 'captain') return true;
-  // Handle both raw ObjectId and populated captain object
   const captainIdStr = user._id.toString();
   const vesselCaptainIdStr = vessel.captainId?._id 
     ? vessel.captainId._id.toString() 
@@ -78,7 +77,6 @@ router.get('/', protect, async (req, res) => {
 
 /**
  * GET /api/vessels/noon-reports-count
- * ⚠️ MUST be BEFORE /:id routes to avoid conflicts
  * Manager only - Get total count of all noon reports
  */
 router.get('/noon-reports-count', protect, restrictTo('manager'), async (req, res) => {
@@ -103,34 +101,29 @@ router.get('/noon-reports-count', protect, restrictTo('manager'), async (req, re
  * GET /api/vessels/noon-reports/recent
  * Get recent noon reports from all vessels (Manager only)
  */
-router.get(
-  '/noon-reports/recent',
-  protect,
-  restrictTo('manager'),
-  async (req, res) => {
-    try {
-      const { limit = 10 } = req.query;
+router.get('/noon-reports/recent', protect, restrictTo('manager'), async (req, res) => {
+  try {
+    const { limit = 10 } = req.query;
 
-      const reports = await NoonReport.find()
-        .populate('vesselId', 'name mmsi')
-        .populate('captainId', 'name email')
-        .sort({ reportedAt: -1 })
-        .limit(parseInt(limit));
+    const reports = await NoonReport.find()
+      .populate('vesselId', 'name mmsi')
+      .populate('captainId', 'name email')
+      .sort({ reportedAt: -1 })
+      .limit(parseInt(limit));
 
-      res.status(200).json({
-        success: true,
-        count: reports.length,
-        data: reports,
-      });
-    } catch (error) {
-      console.error('Get recent reports error:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to fetch recent reports',
-      });
-    }
+    res.status(200).json({
+      success: true,
+      count: reports.length,
+      data: reports,
+    });
+  } catch (error) {
+    console.error('Get recent reports error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch recent reports',
+    });
   }
-);
+});
 
 /**
  * POST /api/vessels
@@ -165,7 +158,8 @@ router.post('/', protect, async (req, res) => {
     });
 
     const io = req.app.get('io');
-    io.emit('vessel-added', { vessel });
+    // ✅ Broadcast to managers only
+    io.to('role:manager').emit('vessel-added', { vessel });
 
     res.status(201).json({
       success: true,
@@ -243,7 +237,6 @@ router.put('/:id', protect, async (req, res) => {
       'speed', 'heading', 'destination', 'eta',
     ];
 
-    // Managers can update captainId
     if (req.user.role === 'manager') {
       allowedFields.push('captainId');
     }
@@ -259,10 +252,13 @@ router.put('/:id', protect, async (req, res) => {
     await vessel.save();
 
     const io = req.app.get('io');
-    io.emit('vessel-updated', { vessel });
+    
+    // ✅ Broadcast to managers only
+    io.to('role:manager').emit('vessel-updated', { vessel });
     
     if (req.body.captainId) {
-      io.emit('vessel-captain-assigned', {
+      // ✅ Notify the new captain
+      io.to('role:manager').emit('vessel-captain-assigned', {
         vesselId: vessel._id,
         captainId: req.body.captainId,
         vesselName: vessel.name
@@ -298,7 +294,8 @@ router.delete('/:id', protect, restrictTo('manager'), async (req, res) => {
     }
 
     const io = req.app.get('io');
-    io.emit('vessel-deleted', { vesselId: vessel._id });
+    // ✅ Broadcast to managers only
+    io.to('role:manager').emit('vessel-deleted', { vesselId: vessel._id });
 
     res.status(200).json({
       success: true,
@@ -391,12 +388,18 @@ router.put('/:id/position', protect, async (req, res) => {
     await vessel.save();
 
     const io = req.app.get('io');
-    io.emit('vessel-position-update', {
+    const vesselRoom = `vessel:${vessel._id}`;
+    
+    const positionUpdate = {
       vesselId: vessel._id,
       position: vessel.currentPosition,
       speed: vessel.speed,
       heading: vessel.heading,
-    });
+    };
+
+    // ✅ Send to managers + vessel captain only
+    io.to('role:manager').emit('vessel-position-update', positionUpdate);
+    io.to(vesselRoom).emit('vessel-position-update', positionUpdate);
 
     res.status(200).json({
       success: true,
@@ -528,7 +531,7 @@ router.get('/:id/weather', protect, async (req, res) => {
 
 /**
  * POST /api/vessels/:id/noon-report
- *  ENHANCED: Auto-calculate distance, validate fuel, broadcast to managers
+ * ✅ SECURE: Broadcasts ONLY to managers
  */
 router.post('/:id/noon-report', protect, async (req, res) => {
   try {
@@ -575,7 +578,6 @@ router.post('/:id/noon-report', protect, async (req, res) => {
     let calculatedDistance = distanceSinceLastNoon;
     
     if (!calculatedDistance) {
-      // Get last noon report to calculate distance
       const lastReport = await NoonReport.findOne({ vesselId: vessel._id })
         .sort({ reportedAt: -1 })
         .limit(1);
@@ -613,35 +615,20 @@ router.post('/:id/noon-report', protect, async (req, res) => {
     vessel.lastNoonReportId = report._id;
     await vessel.save();
 
-    // ✅ BROADCAST: Notify all managers via Socket.IO
+    // ✅ SECURE BROADCAST: Only to managers
     const io = req.app.get('io');
     
-    // Populate report for broadcast
     const populatedReport = await NoonReport.findById(report._id)
       .populate('vesselId', 'name mmsi')
       .populate('captainId', 'name email');
 
-    io.emit('new-noon-report', {
+    // ✅ SEND ONLY TO MANAGERS
+    io.to('role:manager').emit('new-noon-report', {
       report: populatedReport,
       message: `New noon report from ${vessel.name}`,
     });
 
-    io.emit('noon-report-created', {
-      vesselId: vessel._id,
-      reportSummary: {
-        _id: report._id,
-        reportedAt: report.reportedAt,
-        position: report.position,
-        averageSpeed: report.averageSpeed,
-        distanceSinceLastNoon: report.distanceSinceLastNoon,
-        fuelRob: report.fuelRob,
-        fuelConsumedSinceLastNoon: report.fuelConsumedSinceLastNoon,
-        nextPort: report.nextPort,
-        eta: report.eta,
-      },
-    });
-
-    console.log('📡 Broadcasted new noon report to all clients');
+    console.log(`📡 Noon report broadcast to MANAGERS ONLY (not captains)`);
 
     res.status(201).json({
       success: true,

@@ -3,25 +3,21 @@ import { createServer } from "http";
 import { Server } from "socket.io";
 import cors from "cors";
 import dotenv from "dotenv";
+import jwt from "jsonwebtoken";
 import connectDB from "./src/config/db.js";
 import authRoutes from "./src/routes/auth.js";
 import vesselRoutes from "./src/routes/vessels.js";
 import userRoutes from "./src/routes/users.js";
 import sensorRoutes from "./src/routes/sensors.js";
+import User from "./src/models/User.js";
+import { connectRabbitMQ, startSensorConsumer } from "./src/services/rabbitmq.js";
 
-import {
-  connectRabbitMQ,
-  startSensorConsumer,
-} from "./src/services/rabbitmq.js";
-
-// Load environment variables
 dotenv.config();
 
-// Create Express app
 const app = express();
 const httpServer = createServer(app);
 
-// ✅ FIXED Socket.IO setup
+// Socket.IO setup
 const io = new Server(httpServer, {
   cors: {
     origin: process.env.CLIENT_URL || "http://localhost:5173",
@@ -35,10 +31,8 @@ const io = new Server(httpServer, {
   pingInterval: 25000,
 });
 
-// Connect to MongoDB
 connectDB();
 
-// Middleware
 app.use(
   cors({
     origin: process.env.CLIENT_URL || "http://localhost:5173",
@@ -47,23 +41,18 @@ app.use(
 );
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
-// Make io accessible to routes
 app.set("io", io);
 
-// Request logger
 app.use((req, res, next) => {
   console.log(`📨 ${req.method} ${req.path}`);
   next();
 });
 
-// API Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/vessels", vesselRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/sensors", sensorRoutes);
 
-// Health check endpoint
 app.get("/health", (req, res) => {
   res.status(200).json({
     success: true,
@@ -72,20 +61,60 @@ app.get("/health", (req, res) => {
   });
 });
 
-// Socket.IO connection handling
-io.on("connection", (socket) => {
-  console.log(`✅ Client connected: ${socket.id}`);
+// ✅ SOCKET.IO AUTHENTICATION MIDDLEWARE
+io.use(async (socket, next) => {
+  try {
+    const token = socket.handshake.auth.token;
+    
+    if (!token) {
+      return next(new Error('Authentication required'));
+    }
 
-  socket.on("disconnect", () => {
-    console.log(`❌ Client disconnected: ${socket.id}`);
-  });
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await User.findById(decoded.id).populate('vesselId');
+    
+    if (!user) {
+      return next(new Error('User not found'));
+    }
 
-  socket.on("vessel-update", (data) => {
-    console.log("Received vessel update:", data);
-  });
+    socket.user = user;
+    next();
+  } catch (error) {
+    next(new Error('Invalid token'));
+  }
 });
 
-// 404 handler
+// ✅ SOCKET.IO CONNECTION WITH ROOMS
+io.on("connection", (socket) => {
+  const user = socket.user;
+  console.log(`✅ ${user.role} connected: ${user.name}`);
+
+  try {
+    // Join role-based room
+    socket.join(`role:${user.role}`);
+
+    // Captains join their vessel room
+    if (user.role === 'captain' && user.vesselId) {
+      const vesselIdString = user.vesselId._id 
+        ? user.vesselId._id.toString() 
+        : user.vesselId.toString();
+      
+      socket.join(`vessel:${vesselIdString}`);
+      console.log(`🚢 Captain ${user.name} joined vessel:${vesselIdString}`);
+    }
+
+    socket.on("disconnect", () => {
+      console.log(`❌ ${user.role} disconnected: ${user.name}`);
+    });
+
+  } catch (error) {
+    console.error(`Error in socket connection:`, error);
+    socket.disconnect(true);
+  }
+});
+
+
+
 app.use((req, res) => {
   res.status(404).json({
     success: false,
@@ -93,7 +122,6 @@ app.use((req, res) => {
   });
 });
 
-// Global error handler
 app.use((err, req, res, next) => {
   console.error("Error:", err.stack);
   res.status(err.status || 500).json({
@@ -103,14 +131,12 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Start server
 const PORT = process.env.PORT || 5000;
 httpServer.listen(PORT, async () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`🔗 Health check: http://localhost:${PORT}/health`);
   console.log(`🔌 Socket.IO ready on ws://localhost:${PORT}`);
 
-  // Start RabbitMQ
   try {
     await connectRabbitMQ();
     await startSensorConsumer(io);
