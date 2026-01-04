@@ -1,9 +1,5 @@
 # 🚢 Marine Vessel Monitoring System
 
-A full-stack web application to monitor marine vessels with real-time location tracking, live sensor data, noon reports, and weather information.
-
-This project was built to understand real-time systems, backend–frontend communication, and message queues using a practical maritime use case.
-
 ---
 
 ##  Overview
