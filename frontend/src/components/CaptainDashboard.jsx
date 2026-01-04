@@ -363,7 +363,7 @@ const CaptainDashboard = () => {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
         <div className="bg-white rounded-3xl shadow-xl p-12 text-center max-w-md border border-gray-200">
-          <div className="w-20 h-20 bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
+          <div className="w-20 h-20 bg-linear-to-br from-orange-500 to-orange-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
             <Ship className="w-10 h-10 text-white" />
           </div>
           <h2 className="text-2xl font-bold text-gray-900 mb-4">
@@ -392,7 +392,7 @@ const CaptainDashboard = () => {
         </div>
 
         {/* Vessel Info Card */}
-        <div className="bg-gradient-to-br from-blue-500 to-cyan-500 rounded-3xl shadow-xl p-8 text-white mb-8">
+        <div className="bg-linear-to-br from-blue-500 to-cyan-500 rounded-3xl shadow-xl p-8 text-white mb-8">
           <div className="flex items-start justify-between mb-6">
             <div>
               <p className="text-blue-100 text-sm mb-2">Your Assigned Vessel</p>
@@ -437,7 +437,7 @@ const CaptainDashboard = () => {
 
         {/* ✅ CURRENT POSITION MAP - WITH SHIP ICON */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden mb-8">
-          <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-emerald-50 to-teal-50">
+          <div className="px-6 py-4 border-b border-gray-200 bg-linear-to-r from-emerald-50 to-teal-50">
             <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
               <MapPin className="w-5 h-5 text-emerald-600" /> Current Position
             </h3>
@@ -517,7 +517,7 @@ const CaptainDashboard = () => {
         </div>
         {/* Weather Card */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden mb-8">
-          <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-sky-50 to-blue-50">
+          <div className="px-6 py-4 border-b border-gray-200 bg-linear-to-r from-sky-50 to-blue-50">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                 <Cloud className="w-5 h-5 text-blue-600" /> Weather Conditions
@@ -542,7 +542,7 @@ const CaptainDashboard = () => {
               </div>
             ) : weather ? (
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl p-4 border border-orange-200">
+                <div className="bg-linear-to-br from-orange-50 to-orange-100 rounded-xl p-4 border border-orange-200">
                   <div className="flex items-center gap-2 text-orange-700 mb-2">
                     <Thermometer className="w-4 h-4" />
                     <p className="text-sm font-medium">Temperature</p>
@@ -554,7 +554,7 @@ const CaptainDashboard = () => {
                     Feels like {weather.feelsLike}°C
                   </p>
                 </div>
-                <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-200">
+                <div className="bg-linear-to-br from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-200">
                   <div className="flex items-center gap-2 text-blue-700 mb-2">
                     <Cloud className="w-4 h-4" />
                     <p className="text-sm font-medium">Condition</p>
@@ -566,7 +566,7 @@ const CaptainDashboard = () => {
                     {weather.description}
                   </p>
                 </div>
-                <div className="bg-gradient-to-br from-cyan-50 to-cyan-100 rounded-xl p-4 border border-cyan-200">
+                <div className="bg-linear-to-br from-cyan-50 to-cyan-100 rounded-xl p-4 border border-cyan-200">
                   <div className="flex items-center gap-2 text-cyan-700 mb-2">
                     <Wind className="w-4 h-4" />
                     <p className="text-sm font-medium">Wind Speed</p>
@@ -578,7 +578,7 @@ const CaptainDashboard = () => {
                     Direction: {weather.windDirection}°
                   </p>
                 </div>
-                <div className="bg-gradient-to-br from-teal-50 to-teal-100 rounded-xl p-4 border border-teal-200">
+                <div className="bg-linear-to-br from-teal-50 to-teal-100 rounded-xl p-4 border border-teal-200">
                   <div className="flex items-center gap-2 text-teal-700 mb-2">
                     <Droplets className="w-4 h-4" />
                     <p className="text-sm font-medium">Humidity</p>
@@ -590,7 +590,7 @@ const CaptainDashboard = () => {
                     <Eye className="w-3 h-3" /> {weather.visibility} km
                   </p>
                 </div>
-                <div className="bg-gradient-to-br from-indigo-50 to-indigo-100 rounded-xl p-4 border border-indigo-200">
+                <div className="bg-linear-to-br from-indigo-50 to-indigo-100 rounded-xl p-4 border border-indigo-200">
                   <div className="flex items-center gap-2 text-indigo-700 mb-2">
                     <Gauge className="w-4 h-4" />
                     <p className="text-sm font-medium">Pressure</p>
@@ -599,7 +599,7 @@ const CaptainDashboard = () => {
                     {weather.pressure} hPa
                   </p>
                 </div>
-                <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-4 border border-purple-200">
+                <div className="bg-linear-to-br from-purple-50 to-purple-100 rounded-xl p-4 border border-purple-200">
                   <div className="flex items-center gap-2 text-purple-700 mb-2">
                     <Waves className="w-4 h-4" />
                     <p className="text-sm font-medium">Wave Height</p>
@@ -608,7 +608,7 @@ const CaptainDashboard = () => {
                     {weather.waveHeight} m
                   </p>
                 </div>
-                <div className="bg-gradient-to-br from-pink-50 to-pink-100 rounded-xl p-4 border border-pink-200">
+                <div className="bg-linear-to-br from-pink-50 to-pink-100 rounded-xl p-4 border border-pink-200">
                   <div className="flex items-center gap-2 text-pink-700 mb-2">
                     <SunriseIcon className="w-4 h-4" />
                     <p className="text-sm font-medium">Sunrise</p>
@@ -617,7 +617,7 @@ const CaptainDashboard = () => {
                     {weather.sunrise}
                   </p>
                 </div>
-                <div className="bg-gradient-to-br from-rose-50 to-rose-100 rounded-xl p-4 border border-rose-200">
+                <div className="bg-linear-to-br from-rose-50 to-rose-100 rounded-xl p-4 border border-rose-200">
                   <div className="flex items-center gap-2 text-rose-700 mb-2">
                     <SunsetIcon className="w-4 h-4" />
                     <p className="text-sm font-medium">Sunset</p>
@@ -645,7 +645,7 @@ const CaptainDashboard = () => {
         {/* Submit Noon Report Button */}
         <button
           onClick={() => setShowReportForm(true)}
-          className="w-full bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-bold py-6 px-8 rounded-2xl shadow-xl hover:shadow-2xl transition-all mb-8 text-xl flex items-center justify-center gap-3"
+          className="w-full bg-linear-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-bold py-6 px-8 rounded-2xl shadow-xl hover:shadow-2xl transition-all mb-8 text-xl flex items-center justify-center gap-3"
         >
           <FileText className="w-6 h-6" />
           Submit Noon Report
@@ -653,7 +653,7 @@ const CaptainDashboard = () => {
 
         {/* Recent Reports */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-cyan-50">
+          <div className="px-6 py-4 border-b border-gray-200 bg-linear-to-r from-blue-50 to-cyan-50">
             <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
               <FileText className="w-5 h-5 text-blue-600" />
               Your Recent Submissions
@@ -979,7 +979,7 @@ const CaptainDashboard = () => {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="flex-1 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-semibold py-3 px-4 rounded-xl shadow-lg hover:shadow-xl transition-all disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  className="flex-1 bg-linear-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-semibold py-3 px-4 rounded-xl shadow-lg hover:shadow-xl transition-all disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {submitting ? (
                     <>
