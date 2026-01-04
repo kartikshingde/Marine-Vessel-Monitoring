@@ -182,9 +182,9 @@ Marine-Vessel-Monitoring/
 │
 ├── frontend/
 │   ├── src/
-│   │   ├── components/   # UI components with Sockets
+│   │   ├── components/   # UI components (with Socket.IO)
 │   │   ├── context/      # Auth context
-│   │   ├── utils/        # Axios 
+│   │   ├── utils/        # Axios & socket setup
 │   │   └── App.jsx
 │
 └── README.md
