@@ -2,11 +2,20 @@ import { useContext, useEffect, useState } from "react";
 import { AuthContext } from "../context/AuthContext";
 import { Link } from "react-router-dom";
 import api from "../utils/api";
-import SensorGrid from './SensorGrid';
-import RecentNoonReports from './RecentNoonReports';
-import Toast from './Toast';
-import io from 'socket.io-client';
-import { Ship, Anchor, BarChart3, Map, Plus, UserPlus, X, AlertTriangle } from "lucide-react";
+import SensorGrid from "./SensorGrid";
+import RecentNoonReports from "./RecentNoonReports";
+import Toast from "./Toast";
+import io from "socket.io-client";
+import {
+  Ship,
+  Anchor,
+  BarChart3,
+  Map,
+  Plus,
+  UserPlus,
+  X,
+  AlertTriangle,
+} from "lucide-react";
 
 const ManagerDashboard = () => {
   const { user } = useContext(AuthContext);
@@ -28,8 +37,13 @@ const ManagerDashboard = () => {
   // Create Vessel Modal
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createData, setCreateData] = useState({
-    name: "", mmsi: "", type: "cargo", latitude: "", longitude: "",
-    speed: "0", heading: "0",
+    name: "",
+    mmsi: "",
+    type: "cargo",
+    latitude: "",
+    longitude: "",
+    speed: "0",
+    heading: "0",
   });
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState("");
@@ -46,27 +60,52 @@ const ManagerDashboard = () => {
 
   // ✅ SINGLE SOCKET.IO CONNECTION
   useEffect(() => {
-    const newSocket = io(import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000', {
-      auth: { token: localStorage.getItem('token') }
-    });
+    const newSocket = io(
+      import.meta.env.VITE_SOCKET_URL || "http://localhost:5000",
+      {
+        auth: { token: localStorage.getItem("token") },
+      }
+    );
 
     setSocket(newSocket);
 
-    newSocket.on('connect', () => {
-      console.log('🔌 Manager Socket.IO connected');
+    newSocket.on("connect", () => {
+      console.log("🔌 Manager Socket.IO connected");
     });
 
-    newSocket.on('disconnect', () => {
-      console.log('🔌 Manager Socket.IO disconnected');
+    newSocket.on("disconnect", () => {
+      console.log("🔌 Manager Socket.IO disconnected");
     });
 
     // Listen for new noon reports
-    newSocket.on('new-noon-report', (data) => {
-      console.log('📨 New noon report notification:', data);
-      showToast('success', `📋 New noon report from ${data.report.vesselId?.name}`);
-      
+    newSocket.on("new-noon-report", (data) => {
+      console.log("📨 New noon report notification:", data);
+      showToast(
+        "success",
+        `📋 New noon report from ${data.report.vesselId?.name}`
+      );
+
+      // - Listen for vessel position updates
+      newSocket.on("vessel-position-update", (data) => {
+        console.log("🚢 Position update received:", data);
+
+        // Update the vessel's position in the vessels array
+        setVessels((prev) =>
+          prev.map((vessel) =>
+            vessel._id === data.vesselId
+              ? {
+                  ...vessel,
+                  currentPosition: data.position,
+                  speed: data.speed,
+                  heading: data.heading,
+                }
+              : vessel
+          )
+        );
+      });
+
       // Update report count
-      setNoonReportCount(prev => prev + 1);
+      setNoonReportCount((prev) => prev + 1);
     });
 
     return () => {
@@ -106,16 +145,16 @@ const ManagerDashboard = () => {
   }, []);
 
   // Calculate unassigned count properly
-  const unassignedCount = vessels.filter(v => {
+  const unassignedCount = vessels.filter((v) => {
     if (!v.captainId) return true;
-    if (typeof v.captainId === 'object' && !v.captainId._id) return true;
+    if (typeof v.captainId === "object" && !v.captainId._id) return true;
     return false;
   }).length;
 
   const handleAssignChange = (e) => {
     const { name, value } = e.target;
     setAssignError("");
-    setAssignData(prev => ({ ...prev, [name]: value }));
+    setAssignData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleAssignSubmit = async (e) => {
@@ -129,23 +168,29 @@ const ManagerDashboard = () => {
       setAssigning(true);
       setAssignError("");
       await api.put(`/vessels/${assignData.vesselId}`, {
-        captainId: assignData.captainId
+        captainId: assignData.captainId,
       });
 
-      const assignedCaptain = captains.find(c => c._id === assignData.captainId);
-      setVessels(prev => prev.map(v =>
-        v._id === assignData.vesselId
-          ? { ...v, captainId: assignedCaptain || assignData.captainId }
-          : v
-      ));
+      const assignedCaptain = captains.find(
+        (c) => c._id === assignData.captainId
+      );
+      setVessels((prev) =>
+        prev.map((v) =>
+          v._id === assignData.vesselId
+            ? { ...v, captainId: assignedCaptain || assignData.captainId }
+            : v
+        )
+      );
 
       setAssignData({ vesselId: "", captainId: "" });
       setShowAssignModal(false);
       setAssigning(false);
-      showToast('success', 'Captain assigned successfully!');
+      showToast("success", "Captain assigned successfully!");
     } catch (error) {
       console.error("Assign error:", error);
-      setAssignError(error.response?.data?.message || "Failed to assign captain");
+      setAssignError(
+        error.response?.data?.message || "Failed to assign captain"
+      );
       setAssigning(false);
     }
   };
@@ -153,7 +198,7 @@ const ManagerDashboard = () => {
   const handleCreateChange = (e) => {
     const { name, value } = e.target;
     setCreateError("");
-    setCreateData(prev => ({ ...prev, [name]: value }));
+    setCreateData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleCreateSubmit = async (e) => {
@@ -186,35 +231,44 @@ const ManagerDashboard = () => {
       };
 
       const { data } = await api.post("/vessels", payload);
-      setVessels(prev => [data.data, ...prev]);
+      setVessels((prev) => [data.data, ...prev]);
       setCreateData({
-        name: "", mmsi: "", type: "cargo", latitude: "", longitude: "",
-        speed: "0", heading: "0",
+        name: "",
+        mmsi: "",
+        type: "cargo",
+        latitude: "",
+        longitude: "",
+        speed: "0",
+        heading: "0",
       });
       setShowCreateModal(false);
       setCreating(false);
-      showToast('success', `Vessel ${createData.name} created successfully!`);
+      showToast("success", `Vessel ${createData.name} created successfully!`);
     } catch (error) {
       console.error("Create vessel error:", error);
-      setCreateError(error.response?.data?.message || "Failed to create vessel");
+      setCreateError(
+        error.response?.data?.message || "Failed to create vessel"
+      );
       setCreating(false);
     }
   };
 
   const getCaptainName = (captainId) => {
     if (!captainId) return "Unassigned";
-    if (typeof captainId === 'object' && captainId.name) {
+    if (typeof captainId === "object" && captainId.name) {
       return captainId.name;
     }
-    const captainIdString = captainId._id ? captainId._id.toString() : captainId.toString();
-    const captain = captains.find(c => c._id.toString() === captainIdString);
+    const captainIdString = captainId._id
+      ? captainId._id.toString()
+      : captainId.toString();
+    const captain = captains.find((c) => c._id.toString() === captainIdString);
     return captain ? captain.name : "Unassigned";
   };
 
   const getAssignedVessel = (captainId) => {
-    return vessels.find(v => {
+    return vessels.find((v) => {
       if (!v.captainId) return false;
-      if (typeof v.captainId === 'object' && v.captainId._id) {
+      if (typeof v.captainId === "object" && v.captainId._id) {
         return v.captainId._id.toString() === captainId.toString();
       }
       return v.captainId.toString() === captainId.toString();
@@ -233,7 +287,8 @@ const ManagerDashboard = () => {
 
   const isNoonOverdue = (vessel) => {
     if (!vessel.lastNoonReportAt) return false;
-    const hoursSince = (new Date() - new Date(vessel.lastNoonReportAt)) / (1000 * 60 * 60);
+    const hoursSince =
+      (new Date() - new Date(vessel.lastNoonReportAt)) / (1000 * 60 * 60);
     return hoursSince > 26;
   };
 
@@ -260,7 +315,9 @@ const ManagerDashboard = () => {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">⚓ Manager Dashboard</h1>
+          <h1 className="text-3xl font-bold text-gray-900">
+            ⚓ Manager Dashboard
+          </h1>
           <p className="mt-2 text-gray-600">
             Manage your fleet and assign captains to vessels.
           </p>
@@ -272,7 +329,9 @@ const ManagerDashboard = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600">Total Vessels</p>
-                <p className="text-3xl font-bold text-gray-900">{vessels.length}</p>
+                <p className="text-3xl font-bold text-gray-900">
+                  {vessels.length}
+                </p>
                 <p className="text-xs text-gray-500 mt-1">Fleet size</p>
               </div>
               <Ship className="w-12 h-12 text-blue-600" />
@@ -283,7 +342,9 @@ const ManagerDashboard = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600">Total Captains</p>
-                <p className="text-3xl font-bold text-gray-900">{captains.length}</p>
+                <p className="text-3xl font-bold text-gray-900">
+                  {captains.length}
+                </p>
                 <p className="text-xs text-gray-500 mt-1">
                   {captains.length > 0 ? "All active" : "No captains"}
                 </p>
@@ -296,10 +357,16 @@ const ManagerDashboard = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600">Unassigned Vessels</p>
-                <p className="text-3xl font-bold text-gray-900">{unassignedCount}</p>
+                <p className="text-3xl font-bold text-gray-900">
+                  {unassignedCount}
+                </p>
                 <p className="text-xs text-gray-500 mt-1">Ready to assign</p>
               </div>
-              <AlertTriangle className={`w-12 h-12 ${unassignedCount > 0 ? 'text-yellow-600' : 'text-gray-400'}`} />
+              <AlertTriangle
+                className={`w-12 h-12 ${
+                  unassignedCount > 0 ? "text-yellow-600" : "text-gray-400"
+                }`}
+              />
             </div>
           </div>
 
@@ -307,8 +374,12 @@ const ManagerDashboard = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600">Total Reports</p>
-                <p className="text-3xl font-bold text-gray-900">{noonReportCount}</p>
-                <p className="text-xs text-gray-500 mt-1">All noon submissions</p>
+                <p className="text-3xl font-bold text-gray-900">
+                  {noonReportCount}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
+                  All noon submissions
+                </p>
               </div>
               <BarChart3 className="w-12 h-12 text-purple-600" />
             </div>
@@ -354,7 +425,9 @@ const ManagerDashboard = () => {
 
         {/* Vessel Management Section */}
         <div className="bg-white rounded-lg shadow-lg p-6">
-          <h2 className="text-2xl font-bold text-gray-800 mb-6">Fleet Management</h2>
+          <h2 className="text-2xl font-bold text-gray-800 mb-6">
+            Fleet Management
+          </h2>
 
           {/* Unassigned Vessels Warning */}
           {unassignedCount > 0 ? (
@@ -363,7 +436,8 @@ const ManagerDashboard = () => {
                 <AlertTriangle className="w-5 h-5 text-yellow-600" />
                 <div>
                   <h3 className="font-bold text-yellow-800">
-                    {unassignedCount} vessel{unassignedCount > 1 ? 's' : ''} without captain
+                    {unassignedCount} vessel{unassignedCount > 1 ? "s" : ""}{" "}
+                    without captain
                   </h3>
                   <p className="text-sm text-yellow-700">
                     Assign captains to manage these vessels
@@ -373,7 +447,9 @@ const ManagerDashboard = () => {
             </div>
           ) : (
             <div className="mb-6 p-4 bg-green-50 border-l-4 border-green-500 rounded-lg">
-              <p className="text-green-800 font-semibold">All vessels assigned! 🎉</p>
+              <p className="text-green-800 font-semibold">
+                All vessels assigned! 🎉
+              </p>
             </div>
           )}
 
@@ -406,7 +482,10 @@ const ManagerDashboard = () => {
                 {currentVessels.map((vessel) => {
                   const overdue = isNoonOverdue(vessel);
                   return (
-                    <tr key={vessel._id} className="hover:bg-gray-50 transition">
+                    <tr
+                      key={vessel._id}
+                      className="hover:bg-gray-50 transition"
+                    >
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
                           <div className="flex-shrink-0 h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center">
@@ -415,8 +494,12 @@ const ManagerDashboard = () => {
                             </span>
                           </div>
                           <div className="ml-4">
-                            <div className="text-sm font-medium text-gray-900">{vessel.name}</div>
-                            <div className="text-sm text-gray-500">MMSI: {vessel.mmsi}</div>
+                            <div className="text-sm font-medium text-gray-900">
+                              {vessel.name}
+                            </div>
+                            <div className="text-sm text-gray-500">
+                              MMSI: {vessel.mmsi}
+                            </div>
                           </div>
                         </div>
                       </td>
@@ -475,7 +558,8 @@ const ManagerDashboard = () => {
           {totalPages > 1 && (
             <div className="mt-6 flex items-center justify-between">
               <div className="text-sm text-gray-700">
-                Showing {indexOfFirstVessel + 1}-{Math.min(indexOfLastVessel, vessels.length)} of{" "}
+                Showing {indexOfFirstVessel + 1}-
+                {Math.min(indexOfLastVessel, vessels.length)} of{" "}
                 {vessels.length}
               </div>
               <div className="flex gap-2">
@@ -499,7 +583,9 @@ const ManagerDashboard = () => {
 
         {/* Captain List */}
         <div className="bg-white rounded-lg shadow-lg p-6 mt-8">
-          <h2 className="text-2xl font-bold text-gray-800 mb-6">Captain Directory</h2>
+          <h2 className="text-2xl font-bold text-gray-800 mb-6">
+            Captain Directory
+          </h2>
           {captains.length === 0 ? (
             <p className="text-gray-600">No captains registered</p>
           ) : (
@@ -518,7 +604,9 @@ const ManagerDashboard = () => {
                         </span>
                       </div>
                       <div>
-                        <p className="font-semibold text-gray-900">{captain.name}</p>
+                        <p className="font-semibold text-gray-900">
+                          {captain.name}
+                        </p>
                         <p className="text-xs text-gray-500">{captain.email}</p>
                       </div>
                     </div>
@@ -528,7 +616,9 @@ const ManagerDashboard = () => {
                           ⚓ {assignedVessel.name}
                         </p>
                       ) : (
-                        <p className="text-sm text-gray-500">No vessel assigned</p>
+                        <p className="text-sm text-gray-500">
+                          No vessel assigned
+                        </p>
                       )}
                     </div>
                   </div>
@@ -544,8 +634,13 @@ const ManagerDashboard = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg max-w-md w-full p-6">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-2xl font-bold text-gray-900">Assign Captain</h2>
-              <button onClick={() => setShowAssignModal(false)} className="text-gray-500 hover:text-gray-700">
+              <h2 className="text-2xl font-bold text-gray-900">
+                Assign Captain
+              </h2>
+              <button
+                onClick={() => setShowAssignModal(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
                 <X className="w-6 h-6" />
               </button>
             </div>
@@ -623,8 +718,13 @@ const ManagerDashboard = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 overflow-y-auto">
           <div className="bg-white rounded-lg max-w-2xl w-full p-6 m-4">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-2xl font-bold text-gray-900">Create New Vessel</h2>
-              <button onClick={() => setShowCreateModal(false)} className="text-gray-500 hover:text-gray-700">
+              <h2 className="text-2xl font-bold text-gray-900">
+                Create New Vessel
+              </h2>
+              <button
+                onClick={() => setShowCreateModal(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
                 <X className="w-6 h-6" />
               </button>
             </div>

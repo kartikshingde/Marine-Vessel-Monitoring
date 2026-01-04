@@ -54,7 +54,6 @@ function MapCenter({ center }) {
   }, [center, map]);
   return null;
 }
-
 const VesselMap = () => {
   const { user } = useContext(AuthContext);
   const [vessels, setVessels] = useState([]);
@@ -65,7 +64,7 @@ const VesselMap = () => {
   const [statusFilter, setStatusFilter] = useState("all");
   const [weatherData, setWeatherData] = useState({});
   const [loadingWeather, setLoadingWeather] = useState({});
-  const socketRef = useRef(null);
+  const [socket, setSocket] = useState(null); // ✅ ADD THIS STATE
 
   const fetchVesselWeather = async (vesselId) => {
     try {
@@ -79,6 +78,7 @@ const VesselMap = () => {
     }
   };
 
+  // Load vessels on mount
   useEffect(() => {
     const fetchVessels = async () => {
       try {
@@ -98,6 +98,7 @@ const VesselMap = () => {
     fetchVessels();
   }, []);
 
+  // Fetch weather periodically
   useEffect(() => {
     if (vessels.length > 0) {
       vessels.forEach((v) => fetchVesselWeather(v._id));
@@ -109,20 +110,38 @@ const VesselMap = () => {
     }
   }, [vessels]);
 
+  // ✅ Socket.IO Connection
   useEffect(() => {
-    if (socketRef.current) return;
-    const socket = io(
-      import.meta.env.VITE_API_URL?.replace("/api", "") ||
-        "http://localhost:5000",
-      { transports: ["websocket", "polling"] }
+    const newSocket = io(
+      import.meta.env.VITE_SOCKET_URL || "http://localhost:5000",
+      {
+        auth: { token: localStorage.getItem("token") },
+        transports: ["websocket", "polling"],
+      }
     );
-    socketRef.current = socket;
 
-    socket.on("connect", () =>
-      console.log("✅ Socket.IO connected:", socket.id)
-    );
-    socket.on("vessel-position-update", (data) => {
+    setSocket(newSocket);
+
+    newSocket.on("connect", () => {
+      console.log("✅ VesselMap Socket.IO connected:", newSocket.id);
+    });
+
+    newSocket.on("disconnect", () => {
+      console.log("❌ VesselMap Socket.IO disconnected");
+    });
+
+    return () => {
+      newSocket.disconnect();
+    };
+  }, []);
+
+  // ✅ Listen for vessel position updates
+  useEffect(() => {
+    if (!socket) return;
+
+    const handlePositionUpdate = (data) => {
       console.log("📍 Vessel position update:", data);
+      
       setVessels((prev) =>
         prev.map((v) =>
           v._id === data.vesselId
@@ -144,17 +163,20 @@ const VesselMap = () => {
             : v
         )
       );
+
+      // Refresh weather for updated vessel
       fetchVesselWeather(data.vesselId);
-    });
-    socket.on("disconnect", () => console.log("❌ Socket.IO disconnected"));
+    };
+
+    socket.on("vessel-position-update", handlePositionUpdate);
 
     return () => {
-      if (socketRef.current) {
-        socketRef.current.disconnect();
-        socketRef.current = null;
-      }
+      socket.off("vessel-position-update", handlePositionUpdate);
     };
-  }, []);
+  }, [socket]);
+
+  // ... rest of your component
+
 
   const handleVesselClick = (vessel) => {
     setSelectedVessel(vessel);
