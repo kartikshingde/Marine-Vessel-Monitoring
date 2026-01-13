@@ -77,7 +77,7 @@ export const startSensorConsumer = async (io) => {
       }
 
       // ✅ SECURE BROADCASTING - ROOM-BASED
-      const vesselRoom = `vessel:${vessel._id}`;
+      const vesselRoom = 'role:captain';
       const managerRoom = 'role:manager';
 
       const positionUpdate = {
